@@ -5,4 +5,4 @@ include release-tools/build.make
 
 REGISTRY_NAME=boxjan/csi-s3
 
-main.version=dev
+REV=dev
