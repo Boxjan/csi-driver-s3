@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: build-% build container-% container push-% push clean test
+.PHONY:help
+help:  ## Display this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 # A space-separated list of all commands in the repository, must be
 # set in main Makefile of a repository.
@@ -76,6 +78,9 @@ LDFLAGS =
 FULL_LDFLAGS = $(LDFLAGS) $(IMPORTPATH_LDFLAGS) $(EXT_LDFLAGS)
 # This builds each command (= the sub-directories of ./cmd) for the target platform(s)
 # defined by BUILD_PLATFORMS.
+.PHONY: build-% build
+build: ## Build bin
+build: $(CMDS:%=build-%)
 $(CMDS:%=build-%): build-%: check-go-version-go
 	mkdir -p bin
 	echo '$(BUILD_PLATFORMS)' | tr ';' '\n' | while read -r os arch suffix; do \
@@ -85,9 +90,15 @@ $(CMDS:%=build-%): build-%: check-go-version-go
 		fi; \
 	done
 
+.PHONY: container-% container
+container: ## Package container
+container: $(CMDS:%=container-%)
 $(CMDS:%=container-%): container-%: build-%
 	docker build -t $*:latest -f $(shell if [ -e ./cmd/$*/Dockerfile ]; then echo ./cmd/$*/Dockerfile; else echo Dockerfile; fi) --label revision=$(REV) .
 
+.PHONY: push-% push
+push: ## Push container
+push: $(CMDS:%=push-%)
 $(CMDS:%=push-%): push-%: container-%
 	set -ex; \
 	push_image () { \
@@ -105,10 +116,6 @@ $(CMDS:%=push-%): push-%: container-%
 			: "release image $(IMAGE_NAME):$$tag already exists, skipping push"; \
 		fi; \
 	done
-
-build: $(CMDS:%=build-%)
-container: $(CMDS:%=container-%)
-push: $(CMDS:%=push-%)
 
 # Additional parameters are needed when pushing to a local registry,
 # see https://github.com/docker/buildx/issues/94.
@@ -129,6 +136,9 @@ DOCKER_BUILDX_CREATE_ARGS ?=
 # BUILD_PLATFORMS determines which individual images are included in the multiarch image.
 # PULL_BASE_REF must be set to 'master', 'release-x.y', or a tag name, and determines
 # the tag for the resulting multiarch image.
+.PHONY: push-multiarch
+push-multiarch: ## Package other arch container then push
+push-multiarch: $(CMDS:%=push-multiarch-%)
 $(CMDS:%=push-multiarch-%): push-multiarch-%: check-pull-base-ref build-%
 	set -ex; \
 	DOCKER_CLI_EXPERIMENTAL=enabled; \
@@ -179,29 +189,33 @@ check-pull-base-ref:
 		exit 1; \
 	fi
 
-.PHONY: push-multiarch
-push-multiarch: $(CMDS:%=push-multiarch-%)
 
-clean:
+.PHONY: clean
+clean: ##
 	-rm -rf bin
 
-test: check-go-version-go
+.PHONY: test
+test: ##
+	check-go-version-go
+	test-go
+	test-vet
+	test-fmt
+	test-vendor
+	test-subtree
+	test-shellcheck
 
 .PHONY: test-go
-test: test-go
-test-go:
+test-go: ##
 	@ echo; echo "### $@:"
 	go test $(GOFLAGS_VENDOR) `go list $(GOFLAGS_VENDOR) ./... | grep -v -e 'vendor' -e '/test/e2e$$' $(TEST_GO_FILTER_CMD)` $(TESTARGS)
 
 .PHONY: test-vet
-test: test-vet
-test-vet:
+test-vet: ##
 	@ echo; echo "### $@:"
 	go vet $(GOFLAGS_VENDOR) `go list $(GOFLAGS_VENDOR) ./... | grep -v vendor $(TEST_VET_FILTER_CMD)`
 
 .PHONY: test-fmt
-test: test-fmt
-test-fmt:
+test-fmt: ##
 	@ echo; echo "### $@:"
 	files=$$(find . -name '*.go' | grep -v './vendor' $(TEST_FMT_FILTER_CMD)); \
 	if [ $$(gofmt -d $$files | wc -l) -ne 0 ]; then \
@@ -239,14 +253,12 @@ test-fmt:
 #
 # Vendoring is optional when using go.mod.
 .PHONY: test-vendor
-test: test-vendor
-test-vendor:
+test-vendor: ##
 	@ echo; echo "### $@:"
 	@ ./release-tools/verify-vendor.sh
 
 .PHONY: test-subtree
-test: test-subtree
-test-subtree:
+test-subtree: ##
 	@ echo; echo "### $@:"
 	./release-tools/verify-subtree.sh release-tools
 
@@ -254,8 +266,7 @@ test-subtree:
 # The default is to check only the release-tools directory itself.
 TEST_SHELLCHECK_DIRS=release-tools
 .PHONY: test-shellcheck
-test: test-shellcheck
-test-shellcheck:
+test-shellcheck: ##
 	@ echo; echo "### $@:"
 	@ ret=0; \
 	if ! command -v docker; then \
@@ -279,13 +290,13 @@ check-go-version-%:
 
 # Test for spelling errors.
 .PHONY: test-spelling
-test-spelling:
+test-spelling: ##
 	@ echo; echo "### $@:"
 	@ ./release-tools/verify-spelling.sh "$(pwd)"
 
 # Test the boilerplates of the files.
 .PHONY: test-boilerplate
-test-boilerplate:
+test-boilerplate: ##
 	@ echo; echo "### $@:"
 	@ ./release-tools/verify-boilerplate.sh "$(pwd)"
 
