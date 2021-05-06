@@ -3,14 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/boxjan/csi-driver-s3/src/s3"
+	"github.com/boxjan/csi-driver-s3/src/driver"
 	"os"
 	"path"
 )
 
 var (
 	endpoint    = flag.String("endpoint", "unix://tmp/csi.sock", "CSI endpoint")
-	driverName  = flag.String("name", "s3.csi.k8s.io", "name of the driver")
+	driverName  = flag.String("name", "driver.csi.k8s.io", "name of the driver")
 	nodeID      = flag.String("nodeid", "", "node id")
 	showVersion = flag.Bool("version", false, "Show version.")
 
@@ -30,5 +30,5 @@ func main() {
 	}
 
 	// run
-	s3.NewS3Csi(*driverName, *endpoint, *nodeID, version).Run()
+	driver.NewS3Csi(*driverName, *endpoint, *nodeID, version).Run()
 }

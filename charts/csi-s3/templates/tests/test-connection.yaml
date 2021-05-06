@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: "{{ include "csi-s3.fullname" . }}-test-connection"
+  name: "{{ include "csi-driver.fullname" . }}-test-connection"
   labels:
-    {{- include "csi-s3.labels" . | nindent 4 }}
+    {{- include "csi-driver.labels" . | nindent 4 }}
   annotations:
     "helm.sh/hook": test
 spec:
@@ -11,5 +11,5 @@ spec:
     - name: wget
       image: busybox
       command: ['wget']
-      args: ['{{ include "csi-s3.fullname" . }}:{{ .Values.service.port }}']
+      args: ['{{ include "csi-driver.fullname" . }}:{{ .Values.service.port }}']
   restartPolicy: Never

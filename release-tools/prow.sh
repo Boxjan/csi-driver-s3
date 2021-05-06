@@ -347,7 +347,7 @@ configvar CSI_SNAPSHOTTER_VERSION "$(default_csi_snapshotter_version)" "external
 # Some tests are known to be unusable in a KinD cluster. For example,
 # stopping kubelet with "ssh <node IP> systemctl stop kubelet" simply
 # doesn't work. Such tests should be written in a way that they verify
-# whether they can run with the current cluster provider, but until
+# whether they can run with the current cluster client, but until
 # they are, we filter them out by name. Like the other test selection
 # variables, this is again a space separated list of regular expressions.
 #

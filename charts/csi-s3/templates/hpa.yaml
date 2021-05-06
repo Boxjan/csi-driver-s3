@@ -2,14 +2,14 @@
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "csi-s3.fullname" . }}
+  name: {{ include "csi-driver.fullname" . }}
   labels:
-    {{- include "csi-s3.labels" . | nindent 4 }}
+    {{- include "csi-driver.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "csi-s3.fullname" . }}
+    name: {{ include "csi-driver.fullname" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:

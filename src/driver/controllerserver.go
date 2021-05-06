@@ -1,12 +1,38 @@
-package s3
+package driver
 
 import (
 	"context"
+	"github.com/boxjan/csi-driver-s3/src/client"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"k8s.io/klog/v2"
+	"net/rpc"
 )
 
 func (s *S3csi) CreateVolume(ctx context.Context, request *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
-	panic("implement me")
+	klog.V(5).Info("Got CreateVolume Request with the req: ", CleanCreateVolumeRequestSecret(request))
+	params := request.GetParameters()
+	secret := request.GetSecrets()
+	bucketName := s.sanitizeVolumeName(request.GetName())
+	volumeSize := request.GetCapacityRange().GetRequiredBytes()
+	_ = request.GetCapacityRange().GetLimitBytes() // driver hard to limit volume size. ignore now
+
+	S3Client, err := client.NewS3Client(params, secret)
+	if err != nil {
+		klog.Error(err)
+		return nil, err
+	}
+
+	return &csi.CreateVolumeResponse{
+		Volume: &csi.Volume{
+			CapacityBytes:      volumeSize,
+			VolumeId:           "",
+			VolumeContext:      nil,
+			ContentSource:      nil,
+			AccessibleTopology: nil,
+		},
+	}, nil
 
 }
 
@@ -54,15 +80,15 @@ func (s *S3csi) ControllerGetCapabilities(ctx context.Context, request *csi.Cont
 }
 
 func (s *S3csi) CreateSnapshot(ctx context.Context, request *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
-	panic("implement me")
+	return nil, status.Error(codes.Unimplemented, "")
 }
 
 func (s *S3csi) DeleteSnapshot(ctx context.Context, request *csi.DeleteSnapshotRequest) (*csi.DeleteSnapshotResponse, error) {
-	panic("implement me")
+	return nil, status.Error(codes.Unimplemented, "")
 }
 
 func (s *S3csi) ListSnapshots(ctx context.Context, request *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
-	panic("implement me")
+	return nil, status.Error(codes.Unimplemented, "")
 }
 
 func (s *S3csi) ControllerExpandVolume(ctx context.Context, request *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {

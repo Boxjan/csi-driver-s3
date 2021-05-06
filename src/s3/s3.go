@@ -1,79 +1,51 @@
 package s3
 
 import (
-	csicommon "github.com/boxjan/csi-driver-s3/src/csi-common"
-	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/minio/minio-go/v7"
 	"k8s.io/klog/v2"
 )
 
-type S3csi struct {
-	name     string
+type s3Client struct {
+	provider string
 	endpoint string
-	nodeId   string
-	version  string
+	region   string
 
-	Serv csicommon.NonBlockingGRPCServer
+	clientProvider string
 
-	identitySupportCapabilities   []csi.PluginCapability_Service_Type
-	controllerSupportCapabilities []csi.ControllerServiceCapability_RPC_Type
-	nodeSupportCapabilities       []csi.NodeServiceCapability_RPC_Type
+	S3c         *minio.Client
+	ExtraClient map[string]interface{}
 }
 
-type StorageClassConfig struct {
-	S3Endpoint string
-	Region     string
-	UseSSL     bool
-	Mounter    string
-
-	// if use exists bucket
-	BucketName string
-
-	// digitalocean S3
-	DigitaloceanUseEdgeCdn bool
+type s3Mounter struct {
 }
 
-type S3csiDriverConfig struct {
-	Name           string
-	NodeId         string
-	ListenEndpoint string
-	Version        string
-}
+var clientAllocMapping map[string]func(params, secrets map[string]string) (*s3Client, error)
 
-type AllNeedStruct struct {
-	BucketName    string
-	AccessToken   string
-	SecretKey     string
-	MountEndpoint string
-	ApiEndpoint   string
-	Region        string
-	UseSSL        string
-}
+func init() {
+	clientAllocMapping = make(map[string]func(params, secrets map[string]string) (*s3Client, error))
 
-func NewS3Csi(name, endpoint, nodeId, version string) *S3csi {
-	if csicommon.NewCSIDriver(name, nodeId, version) == nil {
-		klog.Fatalf("driver init failed")
-	}
-	return &S3csi{
-		name:     name,
-		endpoint: endpoint,
-		nodeId:   nodeId,
-		version:  version,
+	{
+		// digitalocean
+		clientAllocMapping["digitalocean"] = NewDigitaloceanS3Client
+		clientAllocMapping["do"] = NewDigitaloceanS3Client
+
+		// standard
+		// use minio go api, aws-sdk is too heavy
+		clientAllocMapping["s3"] = NewMinioS3Client
+		clientAllocMapping[""] = NewMinioS3Client
 	}
 }
 
-func (s *S3csi) Run() {
+func NewS3Client(params, secrets map[string]string) (*s3Client, error) {
+	if _, ok := clientAllocMapping[params["provider"]]; ok {
+		return clientAllocMapping[params["provider"]](params, secrets)
+	}
 
-	s.identitySupportCapabilities = append(s.identitySupportCapabilities,
-		csi.PluginCapability_Service_CONTROLLER_SERVICE,
-	)
+	klog.Warningf("not found provider: %s, will use standard s3 client", params["provider"])
 
-	s.controllerSupportCapabilities = append(s.controllerSupportCapabilities,
-		csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-	)
+	return clientAllocMapping["s3"](params, secrets)
+}
 
-	s.nodeSupportCapabilities = append(s.nodeSupportCapabilities)
+func NewS3Mounter() {
 
-	s.Serv = csicommon.NewNonBlockingGRPCServer()
-	s.Serv.Start(s.endpoint, s, s, s)
-	s.Serv.Wait()
 }

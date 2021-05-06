@@ -1,12 +1,19 @@
-package s3
+package driver
 
 import (
 	"context"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"k8s.io/klog/v2"
 )
 
 func (s *S3csi) NodeGetInfo(ctx context.Context, request *csi.NodeGetInfoRequest) (*csi.NodeGetInfoResponse, error) {
-	panic("implement me")
+	klog.V(5).Info("Got NodeGetInfo Request, ")
+	return &csi.NodeGetInfoResponse{
+		NodeId:             s.nodeId,
+		AccessibleTopology: nil,
+	}, nil
 }
 
 func (s *S3csi) NodePublishVolume(ctx context.Context, request *csi.NodePublishVolumeRequest) (*csi.NodePublishVolumeResponse, error) {
@@ -49,5 +56,5 @@ func (s *S3csi) NodeGetCapabilities(ctx context.Context, request *csi.NodeGetCap
 }
 
 func (s *S3csi) NodeExpandVolume(ctx context.Context, request *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
-	panic("implement me")
+	return nil, status.Error(codes.Unimplemented, "")
 }
