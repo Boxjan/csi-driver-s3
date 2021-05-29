@@ -12,17 +12,19 @@ type s3Client struct {
 
 	clientProvider string
 
-	S3c         *minio.Client
+	cl          *minio.Client
 	ExtraClient map[string]interface{}
+
+	ExtraConfig map[string]string
 }
 
 type s3Mounter struct {
 }
 
-var clientAllocMapping map[string]func(params, secrets map[string]string) (*s3Client, error)
+var clientAllocMapping map[string]func(params, secrets *map[string]string) (*s3Client, error)
 
 func init() {
-	clientAllocMapping = make(map[string]func(params, secrets map[string]string) (*s3Client, error))
+	clientAllocMapping = make(map[string]func(params, secrets *map[string]string) (*s3Client, error))
 
 	{
 		// digitalocean
@@ -36,7 +38,17 @@ func init() {
 	}
 }
 
-func NewS3Client(params, secrets map[string]string) (*s3Client, error) {
+func NewS3ClientFromMultipleStr(provider, endpoint, region string, secrets *map[string]string) (*s3Client, error) {
+	fakeParams := map[string]string{
+		"provider": provider,
+		"endpoint": endpoint,
+		"region":   region,
+	}
+
+	return NewS3Client(&fakeParams, secrets)
+}
+
+func NewS3Client(params, secrets *map[string]string) (*s3Client, error) {
 	if _, ok := clientAllocMapping[params["provider"]]; ok {
 		return clientAllocMapping[params["provider"]](params, secrets)
 	}

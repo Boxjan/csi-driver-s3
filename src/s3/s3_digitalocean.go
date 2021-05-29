@@ -10,21 +10,30 @@ var (
 	ErrDOTokenErr     = errors.New("can not use digitalocean token to get any info")
 )
 
-func NewDigitaloceanS3Client(params, secrets map[string]string) (*s3Client, error) {
+const (
+	ProviderDigitalocean = "digitalocean"
+
+	ExtraConfigDigitaloceanUseCDNKey = "digitalocean-use-cdn"
+)
+
+func NewDigitaloceanS3Client(params, secrets *map[string]string) (*s3Client, error) {
 	mClient, err := NewMinioS3Client(params, secrets)
 	if err != nil {
 		return nil, err
 	}
 
+	mClient.provider = ProviderDigitalocean
+
 	//digitalocean token name: DO-API-KEY
-	if token, ok := getStringValueFromMapTryMultipleKey(&secrets, `DO-API-KEY`, `DoApiKey`); ok {
+	if token, ok := getStringValueFromMapTryMultipleKey(secrets, `DO-API-KEY`, `DoApiKey`); ok {
 		mClient.ExtraClient["do"] = godo.NewFromToken(token)
 	} else {
-		return nil, ErrNoFoundDoToken
+		return mClient, ErrNoFoundDoToken
 	}
 
-	mClient.provider = params["provider"]
-	mClient.clientProvider = "digitalocean"
+	if v, ok := getStringValueFromMapTryMultipleKey(params, `DO-USE-CDN`, `doUseCdn`); ok && v == "true" {
+		mClient.ExtraConfig[ExtraConfigDigitaloceanUseCDNKey] = v
+	}
 
 	return mClient, nil
 }

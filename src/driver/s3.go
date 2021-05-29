@@ -1,9 +1,12 @@
 package driver
 
 import (
+	"context"
 	csicommon "github.com/boxjan/csi-driver-s3/src/csi-common"
 	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/google/uuid"
 	"k8s.io/klog/v2"
+	"time"
 )
 
 type S3csi struct {
@@ -49,6 +52,39 @@ type AllNeedStruct struct {
 	ApiEndpoint   string
 	Region        string
 	UseSSL        string
+}
+
+const (
+	TokenGenInterval = 1 * time.Millisecond // 1000 QPS here
+)
+
+var (
+	requestTokenPool chan<- string
+)
+
+func init() {
+
+	go runTokenGen()
+}
+
+func runTokenGen() {
+	poolSize := int64(1*time.Second/TokenGenInterval) + 4
+	requestTokenPoolFull := make(chan string, poolSize)
+	requestTokenPool = requestTokenPoolFull
+
+	for _ = range time.NewTicker(TokenGenInterval).C {
+		requestTokenPoolFull <- uuid.New().String()
+	}
+}
+
+func FollowRequest(ctx context.Context) context.Context {
+	// now ignore all context cancel request
+
+	//if ctx != nil {
+	//	return context.WithValue(ctx, "RequestId", requestTokenPool)
+	//}
+
+	return context.WithValue(context.Background(), "RequestId", requestTokenPool)
 }
 
 func NewS3Csi(name, endpoint, nodeId, version string) *S3csi {

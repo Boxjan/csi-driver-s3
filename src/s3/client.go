@@ -7,7 +7,3 @@ func (sc *s3Client) GetProvider() string {
 func (sc *s3Client) GetRegion() string {
 	return sc.region
 }
-
-func (sc *s3Client) Get() {
-
-}

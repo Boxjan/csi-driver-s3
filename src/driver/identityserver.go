@@ -8,6 +8,8 @@ import (
 )
 
 func (s *S3csi) GetPluginInfo(ctx context.Context, request *csi.GetPluginInfoRequest) (*csi.GetPluginInfoResponse, error) {
+	ctx = FollowRequest(ctx)
+
 	if s.name == "" {
 		return nil, status.Error(codes.Unavailable, "Driver name not configured")
 	}
@@ -23,6 +25,8 @@ func (s *S3csi) GetPluginInfo(ctx context.Context, request *csi.GetPluginInfoReq
 }
 
 func (s *S3csi) GetPluginCapabilities(ctx context.Context, request *csi.GetPluginCapabilitiesRequest) (*csi.GetPluginCapabilitiesResponse, error) {
+	ctx = FollowRequest(ctx)
+
 	var caps []*csi.PluginCapability
 
 	for _, cap := range s.identitySupportCapabilities {
@@ -42,5 +46,7 @@ func (s *S3csi) GetPluginCapabilities(ctx context.Context, request *csi.GetPlugi
 }
 
 func (s *S3csi) Probe(ctx context.Context, request *csi.ProbeRequest) (*csi.ProbeResponse, error) {
+	ctx = FollowRequest(ctx)
+
 	return &csi.ProbeResponse{}, nil
 }
