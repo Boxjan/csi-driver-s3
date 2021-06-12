@@ -133,3 +133,29 @@ func CleanNodePublishVolumeRequest(request *csi.NodePublishVolumeRequest) csi.No
 		XXX_sizecache:        request.XXX_sizecache,
 	}
 }
+
+func CleanNodeStageVolumeRequest(request *csi.NodeStageVolumeRequest) csi.NodeStageVolumeRequest {
+	return csi.NodeStageVolumeRequest{
+		VolumeId:             request.VolumeId,
+		PublishContext:       request.PublishContext,
+		StagingTargetPath:    request.StagingTargetPath,
+		VolumeCapability:     request.VolumeCapability,
+		Secrets:              cleanSecretMap(request.Secrets),
+		VolumeContext:        request.VolumeContext,
+		XXX_NoUnkeyedLiteral: request.XXX_NoUnkeyedLiteral,
+		XXX_unrecognized:     request.XXX_unrecognized,
+		XXX_sizecache:        request.XXX_sizecache,
+	}
+}
+
+func CleanControllerExpandVolume(request *csi.ControllerExpandVolumeRequest) csi.ControllerExpandVolumeRequest {
+	return csi.ControllerExpandVolumeRequest{
+		VolumeId:             request.VolumeId,
+		CapacityRange:        request.CapacityRange,
+		Secrets:              cleanSecretMap(request.Secrets),
+		VolumeCapability:     request.VolumeCapability,
+		XXX_NoUnkeyedLiteral: request.XXX_NoUnkeyedLiteral,
+		XXX_unrecognized:     request.XXX_unrecognized,
+		XXX_sizecache:        request.XXX_sizecache,
+	}
+}

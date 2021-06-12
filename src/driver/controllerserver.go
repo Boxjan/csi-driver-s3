@@ -144,7 +144,6 @@ func (s *S3csi) ControllerGetCapabilities(ctx context.Context, request *csi.Cont
 func (s *S3csi) CreateSnapshot(ctx context.Context, request *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
 	ctx = FollowRequest(ctx)
 	// s3 snapshot will not a atom operate.
-	klog.Errorf("Got CreateVolume Request with the req: %v, with context: %v", CleanCreateSnapshotRequestSecret(request), ctx)
 	return nil, status.Error(codes.Unimplemented, "not support")
 }
 
@@ -162,6 +161,8 @@ func (s *S3csi) ListSnapshots(ctx context.Context, request *csi.ListSnapshotsReq
 
 func (s *S3csi) ControllerExpandVolume(ctx context.Context, request *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	ctx = FollowRequest(ctx)
+	klog.V(5).Info("Got CreateVolume Request with the req: %v, with context: %v", CleanControllerExpandVolume(request), ctx)
+
 	// will success every time
 	return &csi.ControllerExpandVolumeResponse{
 		CapacityBytes:         request.CapacityRange.GetRequiredBytes(),
@@ -171,6 +172,7 @@ func (s *S3csi) ControllerExpandVolume(ctx context.Context, request *csi.Control
 
 func (s *S3csi) ControllerGetVolume(ctx context.Context, request *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
 	ctx = FollowRequest(ctx)
+	klog.V(5).Info("Got ControllerGetVolume Request with the req: %v, with context: %v", request, ctx)
 
 	return &csi.ControllerGetVolumeResponse{
 		Volume: &csi.Volume{

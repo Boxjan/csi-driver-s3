@@ -28,6 +28,14 @@ type DefaultControllerServer struct {
 	Driver *CSIDriver
 }
 
+func (cs *DefaultControllerServer) ControllerExpandVolume(ctx context.Context, request *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
+func (cs *DefaultControllerServer) ControllerGetVolume(ctx context.Context, request *csi.ControllerGetVolumeRequest) (*csi.ControllerGetVolumeResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "")
+}
+
 func (cs *DefaultControllerServer) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "")
 }
@@ -60,10 +68,7 @@ func (cs *DefaultControllerServer) GetCapacity(ctx context.Context, req *csi.Get
 // Default supports all capabilities
 func (cs *DefaultControllerServer) ControllerGetCapabilities(ctx context.Context, req *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
 	klog.V(5).Infof("Using default ControllerGetCapabilities")
-
-	return &csi.ControllerGetCapabilitiesResponse{
-		Capabilities: cs.Driver.cap,
-	}, nil
+	return nil, status.Error(codes.Unimplemented, "")
 }
 
 func (cs *DefaultControllerServer) CreateSnapshot(ctx context.Context, req *csi.CreateSnapshotRequest) (*csi.CreateSnapshotResponse, error) {
