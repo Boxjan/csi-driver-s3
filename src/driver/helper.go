@@ -2,10 +2,7 @@ package driver
 
 import (
 	"crypto/sha1"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"strings"
@@ -23,20 +20,6 @@ func (s *S3csi) sanitizeVolumeName(volumeName string) string {
 		name = hex.EncodeToString(hash[:]) // will return a 40 length string
 	}
 	return s.bucketPrefix + name
-}
-
-func (s *S3csi) encodeVolumeId(volumeName string, params *map[string]string) string {
-	return s.sanitizeVolumeName(volumeName) + VolumeIdSeparate + encodeParams(params)
-}
-
-func (s *S3csi) decodeVolumeId(volumeId string) (string, *map[string]string, error) {
-	sp := strings.Split(volumeId, VolumeIdSeparate)
-	if len(sp) != 2 {
-		return "", nil, errors.New("unknown format of volumeId")
-	}
-	volumeName := sp[0]
-	pa, err := decodeParams(sp[1])
-	return volumeName, pa, err
 }
 
 func cleanSecret(s string) string {
@@ -60,25 +43,6 @@ func cleanSecretMap(map[string]string) map[string]string {
 		res[k] = cleanSecret(v)
 	}
 	return res
-}
-
-func encodeParams(params *map[string]string) string {
-	b, _ := json.Marshal(params)
-	return base64.StdEncoding.EncodeToString(b)
-}
-
-func decodeParams(s string) (*map[string]string, error) {
-	var jsonByte []byte
-
-	if _, err := base64.StdEncoding.Decode([]byte(s), jsonByte); err != nil {
-		return nil, err
-	} else {
-		mp := make(map[string]string)
-		if err := json.Unmarshal(jsonByte, &mp); err != nil {
-			return nil, err
-		}
-		return &mp, nil
-	}
 }
 
 func CleanCreateVolumeRequestSecret(request *csi.CreateVolumeRequest) csi.CreateVolumeRequest {

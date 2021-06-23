@@ -18,13 +18,12 @@ func (s *S3csi) CreateVolume(ctx context.Context, request *csi.CreateVolumeReque
 	// because params will not appear in other request, so it will be encode into volumeId
 
 	secret := request.GetSecrets()
-	volumeName := s.sanitizeVolumeName(request.GetName())
-	volumeId := s.encodeVolumeId(volumeName, &params)
+	volumeId := s.sanitizeVolumeName(request.GetName())
 	volumeSize := request.GetCapacityRange().GetRequiredBytes()
 	_ = request.GetCapacityRange().GetLimitBytes() // driver hard to limit volume size. ignore now
 
 	if v, ok := params["bucketName"]; ok && v != "" {
-		volumeName = path.Join(v, volumeName)
+		volumeId = path.Join(v, volumeId)
 	}
 
 	klog.V(5).Info("get s3 client from params and secret")
@@ -34,22 +33,27 @@ func (s *S3csi) CreateVolume(ctx context.Context, request *csi.CreateVolumeReque
 		return nil, err
 	}
 
-	klog.V(5).Infof("check volume: %s is exists", volumeName)
-	exists, err := client.VolumeExists(ctx, volumeName)
+	klog.V(5).Infof("check volume: %s is exists", volumeId)
+	exists, err := client.VolumeExists(ctx, volumeId)
 	if err != nil {
 		klog.Error("check volume failed with error:", err)
 		return nil, err
 	}
 
 	if exists {
-		klog.V(5).Info("volume: ", volumeName, "exists, will not create it")
+		klog.V(5).Info("volume: ", volumeId, "exists, will not create it")
 	} else {
-		klog.V(5).Info("volume: ", volumeName, "not exists, will create it")
-		err := client.CreateVolume(ctx, volumeName)
+		klog.V(5).Info("volume: ", volumeId, "not exists, will create it")
+		err := client.CreateVolume(ctx, volumeId)
 		if err != nil {
 			klog.Error("create volume failed with error:", err)
 			return nil, err
 		}
+	}
+
+	err = s.PutMete(volumeId, params)
+	if err != nil {
+		return nil, err
 	}
 
 	return &csi.CreateVolumeResponse{
@@ -66,15 +70,17 @@ func (s *S3csi) DeleteVolume(ctx context.Context, request *csi.DeleteVolumeReque
 	ctx = FollowRequest(ctx)
 	klog.V(5).Info("Got CreateVolume Request with the req: %v, with context: %v", CleanDeleteVolumeRequestSecret(request), ctx)
 
-	volumeName, paramsPtr, err := s.decodeVolumeId(request.GetVolumeId())
+	volumeId := request.GetVolumeId()
+	params, err := s.GetMeta(volumeId)
 	if err != nil {
-		klog.Error("decode volume name & params from volume id failed with err: ", err)
-		return nil, status.Error(codes.InvalidArgument, err.Error())
+		klog.Errorf("get storage: %s meta info failed with err: %+v", volumeId, err)
+		klog.Error("we have lost ", volumeId, "control, will return a success to k8s, need to delete file by manual")
+		return &csi.DeleteVolumeResponse{}, nil
 	}
-	params := *paramsPtr
+
 	secret := request.GetSecrets()
 	if v, ok := params["bucketName"]; ok && v != "" {
-		volumeName = path.Join(v, volumeName)
+		volumeId = path.Join(v, volumeId)
 	}
 
 	client, err := s3.NewS3Client(&params, &secret)
@@ -83,10 +89,11 @@ func (s *S3csi) DeleteVolume(ctx context.Context, request *csi.DeleteVolumeReque
 		return nil, err
 	}
 
-	if err := client.DeleteVolume(ctx, volumeName); err != nil {
+	if err := client.DeleteVolume(ctx, volumeId); err != nil {
+		// if have any err when delete volume, will put meta to ensure not out of ctl.
+		_ = s.PutMete(volumeId, params)
 		return nil, err
 	}
-
 	return &csi.DeleteVolumeResponse{}, nil
 }
 

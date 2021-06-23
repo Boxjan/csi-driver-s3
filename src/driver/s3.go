@@ -25,16 +25,13 @@ type S3csi struct {
 	nodeStatDir string
 
 	// the s3 bucket for storing state information across driver restarts
-	controllerBucketClient *minio.Client
-
-	// controller server will not init node server
-	isController bool
+	meteBucketName   string
+	metaBucketClient *minio.Client
 
 	// bucket
 	bucketPrefix string
 
-	emptyDriver *csicommon.CSIDriver
-	Serv        csicommon.NonBlockingGRPCServer
+	Serv csicommon.NonBlockingGRPCServer
 
 	identitySupportCapabilities   []csi.PluginCapability_Service_Type
 	controllerSupportCapabilities []csi.ControllerServiceCapability_RPC_Type
@@ -61,7 +58,6 @@ type S3csiDriverConfig struct {
 	Version                 string
 	StateDir                string
 	ControllerStorageBucket *S3ConnInfo
-	IamController           bool
 }
 
 type S3ConnInfo struct {
@@ -123,57 +119,52 @@ func NewS3Csi(cfg *S3csiDriverConfig) *S3csi {
 	}
 
 	s3 := &S3csi{
-		name:         cfg.Name,
-		endpoint:     cfg.ListenEndpoint,
-		nodeId:       cfg.NodeId,
-		version:      cfg.Version,
-		stateDir:     cfg.StateDir,
-		emptyDriver:  emptyDriver,
-		isController: cfg.IamController,
+		name:     cfg.Name,
+		endpoint: cfg.ListenEndpoint,
+		nodeId:   cfg.NodeId,
+		version:  cfg.Version,
+		stateDir: cfg.StateDir,
 	}
 
-	if s3.isController {
-		// only controller need init controller storage bucket client
-		endpointU, err := url.Parse(cfg.ControllerStorageBucket.Endpoint)
-		if err != nil {
-			klog.Fatalf("parse controller storage bucket endpoint failed with err: %v", err)
-		}
+	endpointU, err := url.Parse(cfg.ControllerStorageBucket.Endpoint)
+	if err != nil {
+		klog.Fatalf("parse controller storage bucket endpoint failed with err: %v", err)
+	}
 
-		secure := endpointU.Scheme != "http"
+	secure := endpointU.Scheme != "http"
 
-		controllerBucketClient, err := minio.New(cfg.ControllerStorageBucket.Endpoint,
-			&minio.Options{
-				Creds: credentials.NewStaticV4(cfg.ControllerStorageBucket.AccessToken,
-					cfg.ControllerStorageBucket.SecretKey, ""),
-				Secure:       secure,
-				Region:       cfg.ControllerStorageBucket.Region,
-				BucketLookup: 0,
-			})
-		if err != nil {
-			klog.Fatalf("init ControllerStorageBucket client failed with err: %v", err)
+	controllerBucketClient, err := minio.New(cfg.ControllerStorageBucket.Endpoint,
+		&minio.Options{
+			Creds: credentials.NewStaticV4(cfg.ControllerStorageBucket.AccessToken,
+				cfg.ControllerStorageBucket.SecretKey, ""),
+			Secure:       secure,
+			Region:       cfg.ControllerStorageBucket.Region,
+			BucketLookup: 0,
+		})
+	if err != nil {
+		klog.Fatalf("init ControllerStorageBucket client failed with err: %v", err)
+	}
+	exists, err := controllerBucketClient.BucketExists(context.Background(),
+		cfg.ControllerStorageBucket.BucketName)
+	if err != nil {
+		klog.Fatalf("use ControllerStorageBucket Client get bucket: %v with err: %v",
+			cfg.ControllerStorageBucket.BucketName, err)
+	} else if !exists {
+		klog.Warningf("controller-storage-bucket-client not found bucket in endpoint: %s"+
+			", region: %v; will try to create it",
+			cfg.ControllerStorageBucket.Endpoint, cfg.ControllerStorageBucket.Region)
+		if err := controllerBucketClient.MakeBucket(context.Background(),
+			cfg.ControllerStorageBucket.BucketName, minio.MakeBucketOptions{}); err != nil {
+			klog.Fatalf("controller-storage-bucket-client create bucket failed with err: %v", err)
 		}
-		exists, err := controllerBucketClient.BucketExists(context.Background(),
-			cfg.ControllerStorageBucket.BucketName)
-		if err != nil {
-			klog.Fatalf("use ControllerStorageBucket Client get bucket: %v with err: %v",
-				cfg.ControllerStorageBucket.BucketName, err)
-		} else if !exists {
-			klog.Warningf("controller-storage-bucket-client not found bucket in endpoint: %s"+
-				", region: %v; will try to create it",
-				cfg.ControllerStorageBucket.Endpoint, cfg.ControllerStorageBucket.Region)
-			if err := controllerBucketClient.MakeBucket(context.Background(),
-				cfg.ControllerStorageBucket.BucketName, minio.MakeBucketOptions{}); err != nil {
-				klog.Fatalf("controller-storage-bucket-client create bucket failed with err: %v", err)
-			}
-		}
-		s3.controllerBucketClient = controllerBucketClient
-	} else {
-		// run as node server
-		s3.nodeStatDir = path.Join(s3.stateDir, "node", cfg.StateDir)
+	}
+	s3.meteBucketName = cfg.ControllerStorageBucket.BucketName
+	s3.metaBucketClient = controllerBucketClient
 
-		if err := os.MkdirAll(s3.nodeStatDir, 0750); err != nil {
-			klog.Fatalf("create data dir: %s failed with err: %v", s3.nodeStatDir, err)
-		}
+	s3.nodeStatDir = path.Join(s3.stateDir, "node", cfg.StateDir)
+
+	if err := os.MkdirAll(s3.nodeStatDir, 0750); err != nil {
+		klog.Fatalf("create data dir: %s failed with err: %v", s3.nodeStatDir, err)
 	}
 
 	return s3
@@ -192,14 +183,6 @@ func (s *S3csi) Run() {
 	s.nodeSupportCapabilities = append(s.nodeSupportCapabilities)
 
 	s.Serv = csicommon.NewNonBlockingGRPCServer()
-
-	if s.isController {
-		// controller will only
-		klog.Warningf("server will now run under ")
-		s.Serv.Start(s.endpoint, s, csicommon.NewDefaultControllerServer(s.emptyDriver), s)
-	} else {
-		s.Serv.Start(s.endpoint, s, s, csicommon.NewDefaultNodeServer(s.emptyDriver))
-	}
-
+	s.Serv.Start(s.endpoint, s, s, s)
 	s.Serv.Wait()
 }

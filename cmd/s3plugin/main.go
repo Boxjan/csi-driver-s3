@@ -41,9 +41,6 @@ func init() {
 		"the Region of the s3 bucket for storing state information")
 	flag.StringVar(&cfg.ControllerStorageBucket.SubPath, "s3-sub-dir", "",
 		"the SubPath directory of the s3 bucket for storing state information")
-
-	flag.BoolVar(&cfg.IamController, "is-controller", false,
-		"run as a controller")
 }
 
 func main() {
